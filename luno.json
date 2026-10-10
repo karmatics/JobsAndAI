@@ -1,0 +1,34 @@
+{
+  "name": "JobsAndAI",
+  "version": "2.1.0",
+  "description": "The Automation Horizon: An empirical analysis of how generative AI, spatial intelligence, and robotics replace human labor.",
+  "type": "luno-web-app",
+  "mainClass": "JobsAndAI",
+  "entrypoint": {
+    "file": "js/JobsAndAI.js",
+    "class": "JobsAndAI",
+    "method": "run"
+  },
+  "main": [
+    "js/JobsAndAI.js",
+    "js/GraphicsVideoPage.js",
+    "js/ThesisPage.js",
+    "js/AiPerspectivePage.js"
+  ],
+  "library": [
+    "DomBasics.js",
+    "UITools.js",
+    "VideoPlayer.js"
+  ],
+  "styles": [],
+  "processedCountSinceCheckpoint": 5,
+  "changedMethods": {
+    "luno.json": "2026-10-10T06:06:07.251Z",
+    "js/JobsAndAI.js": "2026-10-10T06:06:07.251Z",
+    "js/GraphicsVideoPage.js": "2026-10-10T06:06:07.251Z",
+    "js/ThesisPage.js": "2026-10-10T06:06:07.251Z",
+    "js/AiPerspectivePage.js": "2026-10-10T06:06:07.251Z"
+  },
+  "lastCheckpointTime": "2026-10-10T05:34:53.636Z",
+  "pendingCheckpointDescription": "Multi-page graphics & video breakdown, screen-filling detail viewer, and video player"
+}
