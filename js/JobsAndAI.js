@@ -1,31 +1,77 @@
 class JobsAndAI {
+
   async run(env) {
-    if (!env || !env.container) {
-      throw new Error("run() requires an environment object with a valid container.");
+      if (!env || !env.container) {
+        throw new Error("run() requires an environment object with a valid container.");
+      }
+      if (typeof DomBasics !== 'undefined' && typeof DomBasics.run === 'function') {
+        DomBasics.run();
+      }
+      this.env = env;
+      this.targetElement = env.container;
+      globalThis._jobsAndAiInstance = this;
+
+      this.activeVideoPlayers = [];
+      this.initializeTheme();
+      this.loadGoogleFont();
+      this.setupState();
+      this.loadAppStyles();
+      this.setupKeyboardListeners();
+
+      if (typeof CadPlanAardvark !== 'undefined') {
+        if (this.aardvark) this.aardvark.destroy();
+        this.aardvark = new CadPlanAardvark({ container: this.targetElement, dossierId: 'JobsAndAI' });
+        this.aardvark.init();
+      }
+
+      if (typeof CadPlanItemNotes !== 'undefined' && typeof CadPlanItemNotes.subscribe === 'function') {
+        if (this._unsubNotes) {
+          try { this._unsubNotes(); } catch (e) {}
+        }
+        this._unsubNotes = CadPlanItemNotes.subscribe(() => {
+          const wrapper = this.targetElement?.querySelector('.cad-wrapper');
+          if (wrapper && typeof DocumentReader !== 'undefined' && typeof DocumentReader.decorateContainer === 'function') {
+            DocumentReader.decorateContainer(wrapper, {
+              dossierId: 'JobsAndAI',
+              pageId: this.currentRoute
+            });
+          }
+        });
+      }
+
+      if (this._hashChangeHandler) {
+        window.removeEventListener('hashchange', this._hashChangeHandler);
+      }
+      this._hashChangeHandler = () => this.handleRoute();
+      window.addEventListener('hashchange', this._hashChangeHandler);
+
+      this.handleRoute();
     }
-    this.env = env;
-    this.targetElement = env.container;
-
-    this.activeVideoPlayers = [];
-    this.initializeTheme();
-    this.loadGoogleFont();
-    this.setupState();
-    this.loadAppStyles();
-    this.setupKeyboardListeners();
-    this.handleRoute();
-
-    window.addEventListener('hashchange', () => this.handleRoute());
-  }
 
   destroy() {
-    this.cleanupActiveVideos();
-    if (this._currentKeydownHandler) {
-      window.removeEventListener('keydown', this._currentKeydownHandler);
+      this.cleanupActiveVideos();
+      if (this._unsubNotes) {
+        try { this._unsubNotes(); } catch (e) {}
+        this._unsubNotes = null;
+      }
+      if (this.aardvark) {
+        this.aardvark.destroy();
+        this.aardvark = null;
+      }
+      if (this._currentKeydownHandler) {
+        window.removeEventListener('keydown', this._currentKeydownHandler);
+        this._currentKeydownHandler = null;
+      }
+      if (this._hashChangeHandler) {
+        window.removeEventListener('hashchange', this._hashChangeHandler);
+        this._hashChangeHandler = null;
+      }
+      const viewer = document.getElementById('screen-image-viewer');
+      if (viewer) viewer.remove();
+      const dock = document.getElementById('dr-notes-nav-dock');
+      if (dock) dock.remove();
+      if (globalThis._jobsAndAiInstance === this) globalThis._jobsAndAiInstance = null;
     }
-    const viewer = document.getElementById('screen-image-viewer');
-    if (viewer) viewer.remove();
-  }
-
   cleanupActiveVideos() {
     if (this.activeVideoPlayers && this.activeVideoPlayers.length) {
       this.activeVideoPlayers.forEach(p => {
@@ -42,112 +88,152 @@ class JobsAndAI {
   }
 
   handleRoute() {
-    this.cleanupActiveVideos();
-    const hash = window.location.hash || '';
-    if (hash === '#/thesis' || hash === '#/overview') {
-      this.currentRoute = 'thesis';
-    } else if (hash === '#/code-reasoning') {
-      this.currentRoute = 'code-reasoning';
-    } else if (hash === '#/robotics') {
-      this.currentRoute = 'robotics';
-    } else {
-      this.currentRoute = 'graphics-video';
+      this.cleanupActiveVideos();
+      const hash = window.location.hash || '';
+      const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+      const routeSlug = parts[0] || '';
+      const blockSlug = parts[1] || null;
+
+      if (routeSlug === 'thesis' || routeSlug === 'overview') {
+        this.currentRoute = 'thesis';
+      } else if (routeSlug === 'code-reasoning') {
+        this.currentRoute = 'code-reasoning';
+      } else if (routeSlug === 'robotics') {
+        this.currentRoute = 'robotics';
+      } else {
+        this.currentRoute = 'graphics-video';
+      }
+      this._pendingScrollBlockId = blockSlug;
+      this.renderApp();
     }
-    this.renderApp();
-  }
 
   renderApp() {
-    this.targetElement.innerHTML = "";
-    
-    const themeClass = this.currentTheme === "light" 
-      ? "cad-container cad-grid-bg theme-light" 
-      : "cad-container cad-grid-bg";
-    
-    const appContainer = makeElement("div", { className: themeClass });
-    appContainer.style.setProperty("--motion-scale", String(this.motionValue));
+      this.targetElement.innerHTML = "";
 
-    const innerWrapper = makeElement("div", { className: "cad-wrapper" });
-    innerWrapper.appendChild(this.buildHeader());
+      const themeClass = this.currentTheme === "light"
+        ? "cad-container cad-grid-bg theme-light"
+        : "cad-container cad-grid-bg";
 
-    if (this.currentRoute === 'thesis') {
-      const page = new ThesisPage();
-      innerWrapper.appendChild(page.render(this));
-    } else if (this.currentRoute === 'code-reasoning') {
-      innerWrapper.appendChild(this.buildPlaceholderPage(
-        'Code & Autonomous Software Loops',
-        'Analysis of recursive programming systems, AST parsing, and why software engineering is ground zero for universal substitution.'
-      ));
-    } else if (this.currentRoute === 'robotics') {
-      innerWrapper.appendChild(this.buildPlaceholderPage(
-        'Physical Embodiment & Foundation Robotics',
-        'Vision-Language-Action (VLA) foundation models, Sim-to-Real dexterity transfer, and why the physical manual trades will not remain safe.'
-      ));
-    } else {
-      const page = new GraphicsVideoPage();
-      innerWrapper.appendChild(page.render(this));
+      const appContainer = makeElement("div", { className: themeClass });
+      appContainer.style.setProperty("--motion-scale", String(this.motionValue));
+
+      const innerWrapper = makeElement("div", {
+        className: "cad-wrapper",
+        'data-dossier': 'JobsAndAI',
+        'data-page-id': this.currentRoute
+      });
+      innerWrapper.appendChild(this.buildHeader());
+
+      if (this.currentRoute === 'thesis') {
+        const page = new ThesisPage();
+        innerWrapper.appendChild(page.render(this));
+      } else if (this.currentRoute === 'code-reasoning') {
+        innerWrapper.appendChild(this.buildPlaceholderPage(
+          'Code & Autonomous Software Loops',
+          'Analysis of recursive programming systems, AST parsing, and why software engineering is ground zero for universal substitution.'
+        ));
+      } else if (this.currentRoute === 'robotics') {
+        innerWrapper.appendChild(this.buildPlaceholderPage(
+          'Physical Embodiment & Foundation Robotics',
+          'Vision-Language-Action (VLA) foundation models, Sim-to-Real dexterity transfer, and why the physical manual trades will not remain safe.'
+        ));
+      } else {
+        const page = new GraphicsVideoPage();
+        innerWrapper.appendChild(page.render(this));
+      }
+
+      innerWrapper.appendChild(this.buildFooter());
+      appContainer.appendChild(innerWrapper);
+      this.targetElement.appendChild(appContainer);
+
+      // Ensure every major panel/section has a deterministic data-block-id for note-taking and editing
+      let autoIdx = 0;
+      innerWrapper.querySelectorAll('.cad-panel, section').forEach(el => {
+        if (!el.hasAttribute('data-block-id') && !el.closest('header, footer')) {
+          el.setAttribute('data-block-id', `${this.currentRoute}_panel_${++autoIdx}`);
+        }
+      });
+
+      if (typeof DocumentReader !== 'undefined' && typeof DocumentReader.decorateContainer === 'function') {
+        setTimeout(() => {
+          DocumentReader.decorateContainer(innerWrapper, {
+            dossierId: 'JobsAndAI',
+            pageId: this.currentRoute
+          });
+
+          if (this._pendingScrollBlockId) {
+            const targetId = this._pendingScrollBlockId;
+            this._pendingScrollBlockId = null;
+            const targetEl = innerWrapper.querySelector(`[data-block-id="${targetId}"], [data-block="${targetId}"]`) ||
+                             document.getElementById(targetId);
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              targetEl.style.transition = 'box-shadow 0.3s ease';
+              targetEl.style.boxShadow = '0 0 0 2px #00f2fe, 0 0 24px rgba(0, 242, 254, 0.45)';
+              setTimeout(() => { targetEl.style.boxShadow = ''; }, 2400);
+            }
+          }
+        }, 0);
+      }
     }
 
-    innerWrapper.appendChild(this.buildFooter());
-    appContainer.appendChild(innerWrapper);
-    this.targetElement.appendChild(appContainer);
-  }
-
   buildHeader() {
-    const controlsGroup = makeElement('div', {
-      className: 'header-controls-group'
-    }, [
-      this.buildThemeToggle(),
-      this.buildMotionSlider(),
-      makeElement('button', {
-        className: 'deploy-nav-btn',
-        onclick: (e) => this.triggerGitHubDeploy(e.currentTarget)
-      }, '🚀 Deploy')
-    ]);
+      const controlsGroup = makeElement('div', {
+        className: 'header-controls-group',
+        style: { flexWrap: 'wrap' }
+      }, [
+        ...this._buildLivingToolButtons(),
+        this.buildThemeToggle(),
+        this.buildMotionSlider(),
+        makeElement('button', {
+          className: 'deploy-nav-btn',
+          onclick: (e) => this.triggerGitHubDeploy(e.currentTarget)
+        }, '🚀 Deploy')
+      ]);
 
-    const navTabs = makeElement('nav', { className: 'app-nav-bar' }, [
-      makeElement('a', {
-        href: '#/graphics-video',
-        className: 'nav-tab-link ' + (this.currentRoute === 'graphics-video' ? 'active' : ''),
-        onclick: (e) => { e.preventDefault(); window.location.hash = '#/graphics-video'; }
-      }, '🎨 Graphics, Diffusion & Video'),
-      makeElement('a', {
-        href: '#/thesis',
-        className: 'nav-tab-link ' + (this.currentRoute === 'thesis' ? 'active' : ''),
-        onclick: (e) => { e.preventDefault(); window.location.hash = '#/thesis'; }
-      }, '🧠 The Automation Thesis'),
-      makeElement('a', {
-        href: '#/code-reasoning',
-        className: 'nav-tab-link ' + (this.currentRoute === 'code-reasoning' ? 'active' : ''),
-        onclick: (e) => { e.preventDefault(); window.location.hash = '#/code-reasoning'; }
-      }, '💻 Autonomous Code Loops'),
-      makeElement('a', {
-        href: '#/robotics',
-        className: 'nav-tab-link ' + (this.currentRoute === 'robotics' ? 'active' : ''),
-        onclick: (e) => { e.preventDefault(); window.location.hash = '#/robotics'; }
-      }, '🤖 Foundation Robotics')
-    ]);
+      const navTabs = makeElement('nav', { className: 'app-nav-bar' }, [
+        makeElement('a', {
+          href: '#/graphics-video',
+          className: 'nav-tab-link ' + (this.currentRoute === 'graphics-video' ? 'active' : ''),
+          onclick: (e) => { e.preventDefault(); window.location.hash = '#/graphics-video'; }
+        }, '🎨 Graphics, Diffusion & Video'),
+        makeElement('a', {
+          href: '#/thesis',
+          className: 'nav-tab-link ' + (this.currentRoute === 'thesis' ? 'active' : ''),
+          onclick: (e) => { e.preventDefault(); window.location.hash = '#/thesis'; }
+        }, '🧠 The Automation Thesis'),
+        makeElement('a', {
+          href: '#/code-reasoning',
+          className: 'nav-tab-link ' + (this.currentRoute === 'code-reasoning' ? 'active' : ''),
+          onclick: (e) => { e.preventDefault(); window.location.hash = '#/code-reasoning'; }
+        }, '💻 Autonomous Code Loops'),
+        makeElement('a', {
+          href: '#/robotics',
+          className: 'nav-tab-link ' + (this.currentRoute === 'robotics' ? 'active' : ''),
+          onclick: (e) => { e.preventDefault(); window.location.hash = '#/robotics'; }
+        }, '🤖 Foundation Robotics')
+      ]);
 
-    return makeElement('header', { className: 'minimal-header' }, [
-      makeElement('div', { className: 'header-top' }, [
-        makeElement('div', { className: 'tags-wrapper' }, [
-          makeElement('span', { className: 'tag-pill tag-pill-blue' }, 'The Automation Horizon'),
-          makeElement('span', { className: 'tag-pill tag-pill-purple' }, 'Visual Intelligence & Labor'),
-          makeElement('span', { className: 'tag-pill tag-pill-slate' }, 'Rob Brown')
+      return makeElement('header', { className: 'minimal-header' }, [
+        makeElement('div', { className: 'header-top' }, [
+          makeElement('div', { className: 'tags-wrapper' }, [
+            makeElement('span', { className: 'tag-pill tag-pill-blue' }, 'The Automation Horizon'),
+            makeElement('span', { className: 'tag-pill tag-pill-purple' }, 'Visual Intelligence & Labor'),
+            makeElement('span', { className: 'tag-pill tag-pill-slate' }, 'Rob Brown')
+          ]),
+          controlsGroup
         ]),
-        controlsGroup
-      ]),
-      
-      makeElement('div', { className: 'title-group' }, [
-        makeElement('h1', {}, 'The Automation Horizon'),
-        makeElement('p', { className: 'title-subtitle' }, 
-          'How generative graphics, spatial models, autonomous code, and physical robotics replace all human jobs'
-        )
-      ]),
 
-      navTabs
-    ]);
-  }
+        makeElement('div', { className: 'title-group' }, [
+          makeElement('h1', {}, 'The Automation Horizon'),
+          makeElement('p', { className: 'title-subtitle' },
+            'How generative graphics, spatial models, autonomous code, and physical robotics replace all human jobs'
+          )
+        ]),
 
+        navTabs
+      ]);
+    }
   buildPlaceholderPage(title, desc) {
     return makeElement('div', { className: 'cad-panel space-y-4' }, [
       makeElement('h2', { className: 'text-xl font-bold font-mono text-blue-400' }, title),
@@ -522,27 +608,31 @@ class JobsAndAI {
   }
 
   setupKeyboardListeners() {
-    if (this._currentKeydownHandler) {
-      window.removeEventListener('keydown', this._currentKeydownHandler);
-    }
-    this._currentKeydownHandler = (e) => {
-      const activeEl = document.activeElement;
-      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
-        return;
+      if (this._currentKeydownHandler) {
+        window.removeEventListener('keydown', this._currentKeydownHandler);
       }
-      if (e.key === 't' || e.key === 'T') {
-        const selection = window.getSelection();
-        const text = selection ? selection.toString().trim() : '';
-        if (text) {
-          navigator.clipboard.writeText(text).then(() => {
-            this.showToastMessage('Copied selected excerpt:\n' + text.slice(0, 50) + (text.length > 50 ? '...' : ''));
-          }).catch(() => {});
+      this._currentKeydownHandler = (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
+          e.preventDefault();
+          if (this.aardvark) this.aardvark.toggle();
+          return;
         }
-      }
-    };
-    window.addEventListener('keydown', this._currentKeydownHandler);
-  }
-
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+          return;
+        }
+        if (e.key === 't' || e.key === 'T') {
+          const selection = window.getSelection();
+          const text = selection ? selection.toString().trim() : '';
+          if (text) {
+            navigator.clipboard.writeText(text).then(() => {
+              this.showToastMessage('Copied selected excerpt:\n' + text.slice(0, 50) + (text.length > 50 ? '...' : ''));
+            }).catch(() => {});
+          }
+        }
+      };
+      window.addEventListener('keydown', this._currentKeydownHandler);
+    }
   loadAppStyles() {
     this.applyCoreResetCSS();
     this.applyCoreLayoutCSS();
@@ -969,6 +1059,57 @@ class JobsAndAI {
       }
     `, "cad-image-viewer-styles");
   }
+
+  _buildLivingToolButtons() {
+      const ItemNotes = globalThis.CadPlanItemNotes || globalThis.DocumentItemNotes;
+      const DocEditor = globalThis.CadPlanDocumentEditor || globalThis.DocumentEditor;
+
+      const btnDirectives = makeElement('button', {
+        'data-aardvark-ignore': 'true',
+        style: { padding: '5px 10px', fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace', borderRadius: '6px', cursor: 'pointer', background: '#072138', color: '#00f2fe', border: '1px solid #00f2fe66' },
+        onclick: () => {
+          if (ItemNotes && typeof ItemNotes.openPromptBuilderDialog === 'function') {
+            ItemNotes.openPromptBuilderDialog({ options: { dossierId: 'JobsAndAI' } });
+          }
+        }
+      }, '⚡ Directives');
+
+      const btnRevisions = makeElement('button', {
+        'data-aardvark-ignore': 'true',
+        style: { padding: '5px 10px', fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace', borderRadius: '6px', cursor: 'pointer', background: '#291e05', color: '#f59e0b', border: '1px solid #f59e0b66' },
+        onclick: () => {
+          if (DocEditor && typeof DocEditor.openRevisionManager === 'function') {
+            DocEditor.openRevisionManager(() => this.renderApp(), 'JobsAndAI');
+          }
+        }
+      }, '✏️ Revisions');
+
+      const btnExport = makeElement('button', {
+        'data-aardvark-ignore': 'true',
+        style: { padding: '5px 10px', fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace', borderRadius: '6px', cursor: 'pointer', background: '#082f49', color: '#38bdf8', border: '1px solid #38bdf866' },
+        onclick: () => {
+          const wrapper = this.targetElement?.querySelector('.cad-wrapper');
+          if (wrapper && typeof DocumentReader !== 'undefined' && typeof DocumentReader.openContainerExportDialog === 'function') {
+            DocumentReader.openContainerExportDialog(wrapper, {
+              dossierId: 'JobsAndAI',
+              pageId: this.currentRoute,
+              title: `JobsAndAI — ${this.currentRoute}`
+            });
+          }
+        }
+      }, '📤 Export MD');
+
+      const btnAardvark = makeElement('button', {
+        'data-aardvark-ignore': 'true',
+        style: { padding: '5px 10px', fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace', borderRadius: '6px', cursor: 'pointer', background: '#06291f', color: '#10b981', border: '1px solid #10b98166' },
+        title: 'Toggle Aardvark In-Situ Element Note Picker [Ctrl+Shift+A]',
+        onclick: () => {
+          if (this.aardvark) this.aardvark.toggle();
+        }
+      }, '🔍 Aardvark');
+
+      return [btnDirectives, btnRevisions, btnExport, btnAardvark];
+    }
 }
 
 window.JobsAndAI = JobsAndAI;

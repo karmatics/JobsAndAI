@@ -1,6 +1,6 @@
 {
   "name": "JobsAndAI",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "The Automation Horizon: An empirical analysis of how generative AI, spatial intelligence, and robotics replace human labor.",
   "type": "luno-web-app",
   "mainClass": "JobsAndAI",
@@ -18,21 +18,15 @@
   "library": [
     "DomBasics.js",
     "UITools.js",
-    "VideoPlayer.js"
+    "VideoPlayer.js",
+    "DictationWidget.js",
+    "DocumentReader.js",
+    "SidePanel.js",
+    "SupabaseCommentsAdapter.js",
+    "CadPlanDataRegistry.js",
+    "CadPlanItemNotes.js",
+    "CadPlanDocumentEditor.js",
+    "CadPlanAardvark.js"
   ],
-  "styles": [],
-  "processedCountSinceCheckpoint": 0,
-  "changedMethods": {
-    "luno.json": "2026-10-10T06:06:07.251Z",
-    "js/JobsAndAI.js": "2026-10-10T06:06:07.251Z",
-    "js/GraphicsVideoPage.js": "2026-10-10T06:06:07.251Z",
-    "js/ThesisPage.js": "2026-10-12T00:24:12.183Z",
-    "js/AiPerspectivePage.js": "2026-10-10T06:06:07.251Z",
-    "EconomicsOfAutomation/js/EconomicsOfAutomation.js": "2026-10-12T00:30:16.638Z",
-    "EconomicsOfAutomation/js/DoomerContent.js": "2026-10-12T00:24:12.183Z",
-    "EconomicsOfAutomation/js/RulesContent.js": "2026-10-12T00:24:12.183Z",
-    "EconomicsOfAutomation/rules.html": "2026-10-12T00:24:12.183Z"
-  },
-  "lastCheckpointTime": "2026-11-08T03:37:15.557Z",
-  "pendingCheckpointDescription": "Clean working tree"
+  "styles": []
 }
